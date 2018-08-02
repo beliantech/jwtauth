@@ -60,6 +60,7 @@ func NewWithValidator(alg string, validator Validator, signKey interface{}, veri
 		verifyKey: verifyKey,
 		signer:    jwt.GetSigningMethod(alg),
 		validator: validator,
+		parser:    &jwt.Parser{},
 	}
 }
 
