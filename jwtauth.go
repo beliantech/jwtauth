@@ -32,6 +32,7 @@ type JWTAuth struct {
 	verifyKey interface{}
 	signer    jwt.SigningMethod
 	parser    *jwt.Parser
+	validator Validator
 }
 
 // New creates a JWTAuth authenticator instance that provides middleware handlers
@@ -49,6 +50,22 @@ func NewWithParser(alg string, parser *jwt.Parser, signKey interface{}, verifyKe
 		signer:    jwt.GetSigningMethod(alg),
 		parser:    parser,
 	}
+}
+
+// NewWithValidator takes a validator that is called to verify user-defined claims, e.g. "aud", etc.
+// By default, "exp", "iat", and "nbf" claims are verified, if present.
+func NewWithValidator(alg string, validator Validator, signKey interface{}, verifyKey interface{}) *JWTAuth {
+	return &JWTAuth{
+		signKey:   signKey,
+		verifyKey: verifyKey,
+		signer:    jwt.GetSigningMethod(alg),
+		validator: validator,
+	}
+}
+
+// Validator is an interface that enables users to validate claims on their own.
+type Validator interface {
+	Valid(jwt.Claims) (bool, error)
 }
 
 // Verifier http middleware handler will verify a JWT string from a http request.
@@ -117,20 +134,28 @@ func VerifyRequest(ja *JWTAuth, r *http.Request, findTokenFns ...func(r *http.Re
 		return token, err
 	}
 
+	if token == nil || !token.Valid {
+		err = ErrUnauthorized
+		return token, err
+	}
+
+	// Verify signing algorithm
 	if token.Method != ja.signer {
 		return token, ErrAlgoInvalid
 	}
 
-	if token == nil || !token.Valid {
-		err = ErrUnauthorized
-		return token, err
+	// Verify using validator, if present
+	if ja.validator != nil {
+		if ok, err := ja.validator.Valid(token.Claims); !ok {
+			return token, err
+		}
 	}
 
 	// Valid!
 	return token, nil
 }
 
-func (ja *JWTAuth) Encode(claims jwt.MapClaims) (t *jwt.Token, tokenString string, err error) {
+func (ja *JWTAuth) Encode(claims jwt.Claims) (t *jwt.Token, tokenString string, err error) {
 	t = jwt.New(ja.signer)
 	t.Claims = claims
 	tokenString, err = t.SignedString(ja.signKey)
