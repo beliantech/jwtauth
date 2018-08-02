@@ -130,7 +130,7 @@ func VerifyRequest(ja *JWTAuth, r *http.Request, findTokenFns ...func(r *http.Re
 	return token, nil
 }
 
-func (ja *JWTAuth) Encode(claims jwt.MapClaims) (t *jwt.Token, tokenString string, err error) {
+func (ja *JWTAuth) Encode(claims jwt.Claims) (t *jwt.Token, tokenString string, err error) {
 	t = jwt.New(ja.signer)
 	t.Claims = claims
 	tokenString, err = t.SignedString(ja.signKey)
